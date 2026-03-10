@@ -1,0 +1,1396 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VoiceScript — AI 전사 앱</title>
+
+<style>
+  :root {
+    --bg: #0d0f14;
+    --surface: #151820;
+    --surface2: #1c2030;
+    --card: #1c2030;
+    --border: #2a2f42;
+    --accent: #4f7cff;
+    --accent2: #a78bfa;
+    --danger: #ff4f6a;
+    --text: #e8eaf2;
+    --text-muted: #6b7280;
+    --success: #34d399;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 24px 16px 60px;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(79,124,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(79,124,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+  }
+
+  header { text-align: center; margin-bottom: 36px;  }
+  header h1 {
+    font-family: 'Georgia', serif;
+    font-size: clamp(28px, 6vw, 42px);
+    background: linear-gradient(135deg, #4f7cff, #a78bfa);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  header p { color: var(--text-muted); font-size: 13px; margin-top: 6px; font-weight: 300; }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px;
+    width: 100%;
+    max-width: 680px;
+    margin-bottom: 16px;
+    
+  }
+  .card-title {
+    font-size: 11px; font-weight: 700; letter-spacing: 1.5px;
+    text-transform: uppercase; color: var(--text-muted); margin-bottom: 14px;
+  }
+
+  input[type="password"] {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 11px 14px;
+    color: var(--text);
+    font-family: Consolas, 'Courier New', monospace;
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  input:focus { border-color: var(--accent); }
+  .api-hint { font-size: 11px; color: var(--text-muted); margin-top: 8px; }
+  .api-hint a { color: var(--accent); text-decoration: none; }
+
+  .provider-tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+  .provider-tab {
+    flex: 1; padding: 10px; border-radius: 10px; border: 1px solid var(--border);
+    background: var(--surface2); color: var(--text-muted); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
+    font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; text-align: center;
+  }
+  .provider-tab.active { border-color: var(--accent); color: var(--accent); background: rgba(79,124,255,0.08); }
+  .provider-panel { display: none; }
+  .provider-panel.active { display: block; }
+  .badge {
+    display: inline-block; font-size: 10px; padding: 2px 7px; border-radius: 20px;
+    font-weight: 700; margin-left: 6px; vertical-align: middle;
+  }
+  .badge-free { background: rgba(52,211,153,0.15); color: var(--success); }
+  .badge-accurate { background: rgba(167,139,250,0.15); color: var(--accent2); }
+
+  .record-center { display: flex; flex-direction: column; align-items: center; gap: 20px; }
+  .waveform-wrap { width: 100%; height: 48px; display: flex; align-items: center; justify-content: center; gap: 3px; }
+  .wave-bar { width: 4px; height: 6px; background: var(--border); border-radius: 2px; transition: height 0.1s ease; }
+  .wave-bar.active { background: var(--accent); }
+
+  .timer { font-family: Consolas, 'Courier New', monospace; font-size: 28px; font-weight: 500; color: var(--text); letter-spacing: 2px; display: none; }
+  .timer.visible { display: block; }
+
+  .record-btn {
+    width: 80px; height: 80px; border-radius: 50%; border: 2px solid var(--border);
+    background: var(--surface2); cursor: pointer;
+    display: flex; align-items: center; justify-content: center; transition: transform 0.2s;
+  }
+  .record-btn:hover { transform: scale(1.05); }
+  .record-btn .dot { width: 28px; height: 28px; border-radius: 50%; background: var(--danger); transition: all 0.3s; }
+  .record-btn.recording .dot { border-radius: 6px; width: 22px; height: 22px; animation: pulse 1s ease infinite; }
+  .record-btn.recording { border-color: var(--danger); animation: ripple 1.5s ease infinite; }
+
+  @keyframes ripple { 0% { box-shadow: 0 0 0 0 rgba(255,79,106,0.4); } 100% { box-shadow: 0 0 0 20px rgba(255,79,106,0); } }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+  .record-status { font-size: 13px; color: var(--text-muted); font-weight: 500; }
+  .record-status.active { color: var(--danger); }
+
+  .upload-zone {
+    border: 2px dashed var(--border); border-radius: 12px; padding: 28px;
+    text-align: center; cursor: pointer; transition: all 0.2s; position: relative;
+  }
+  .upload-zone:hover, .upload-zone.drag { border-color: var(--accent); background: rgba(79,124,255,0.04); }
+  .upload-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  .upload-zone .icon { font-size: 28px; margin-bottom: 8px; }
+  .upload-zone p { font-size: 13px; color: var(--text-muted); }
+  .upload-zone span { color: var(--accent); font-weight: 500; }
+  .file-name { font-size: 12px; color: var(--success); margin-top: 8px; font-family: Consolas, 'Courier New', monospace; }
+
+  .settings-row { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+  .settings-row > div { flex: 1; min-width: 130px; display: flex; flex-direction: column; gap: 6px; }
+  .label-sm { font-size: 11px; color: var(--text-muted); font-weight: 500; }
+
+  select {
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 10px;
+    padding: 10px 14px; color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
+    font-size: 13px; outline: none; cursor: pointer;
+  }
+  select:focus { border-color: var(--accent); }
+
+  .transcribe-btn {
+    width: 100%; padding: 14px; border-radius: 12px; border: none;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color: white; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
+    font-size: 15px; font-weight: 700; cursor: pointer;
+    transition: opacity 0.2s, transform 0.1s; margin-top: 14px;
+  }
+  .transcribe-btn:hover { opacity: 0.9; transform: translateY(-1px); }
+  .transcribe-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+  .progress-wrap { display: none; flex-direction: column; gap: 8px; margin-top: 14px; }
+  .progress-wrap.visible { display: flex; }
+  .chunk-info { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); font-family: Consolas, 'Courier New', monospace; }
+  .progress-bar-bg { width: 100%; height: 8px; background: var(--surface2); border-radius: 4px; overflow: hidden; }
+  .progress-bar { height: 100%; border-radius: 4px; background: linear-gradient(90deg, var(--accent), var(--accent2)); width: 0%; transition: width 0.4s ease; }
+  .progress-label { font-size: 12px; color: var(--text-muted); text-align: center; }
+
+  .chunk-log {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px; max-height: 130px;
+    overflow-y: auto; font-family: Consolas, 'Courier New', monospace;
+    font-size: 11px; color: var(--text-muted); display: none;
+  }
+  .chunk-log.visible { display: block; }
+  .log-line { padding: 2px 0; }
+  .log-line.done { color: var(--success); }
+  .log-line.active { color: var(--accent); }
+  .log-line.err { color: var(--danger); }
+
+  .result-box {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 10px; padding: 16px; font-size: 14px; line-height: 1.9;
+    white-space: pre-wrap; min-height: 120px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; color: var(--text);
+    outline: none; width: 100%; resize: vertical;
+  }
+  .result-box:focus { border-color: var(--accent); }
+
+  .export-row { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+  .export-btn {
+    flex: 1; min-width: 100px; padding: 10px 16px; border-radius: 10px;
+    border: 1px solid var(--border); background: var(--surface2); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; font-size: 13px; font-weight: 500;
+    cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 6px;
+  }
+  .export-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* Format picker for export */
+  .format-picker { display: flex; gap: 8px; margin-bottom: 10px; }
+  .fmt-btn {
+    flex: 1; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--surface2); color: var(--text-muted); font-size: 12px; font-weight: 600;
+    cursor: pointer; transition: all 0.18s; font-family: Consolas, 'Courier New', monospace; text-align: center;
+  }
+  .fmt-btn.selected { border-color: var(--accent); color: var(--accent); background: rgba(79,124,255,0.10); }
+  .fmt-btn:hover:not(.selected) { border-color: var(--border); color: var(--text); }
+
+  /* Minutes button */
+  .minutes-cta {
+    width: 100%; margin-top: 14px; padding: 13px; border-radius: 12px;
+    border: 1.5px solid var(--accent2); background: rgba(167,139,250,0.07);
+    color: var(--accent2); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
+    font-size: 14px; font-weight: 700; cursor: pointer; transition: all 0.2s;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .minutes-cta:hover { background: rgba(167,139,250,0.15); }
+  .minutes-cta:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* Section separator */
+  .section-sep {
+    display: flex; align-items: center; gap: 12px;
+    width: 100%; max-width: 680px; margin: 4px 0 4px;
+  }
+  .section-sep hr { flex: 1; border: none; border-top: 1px solid var(--border); }
+  .section-sep span { font-size: 10px; color: var(--text-muted); letter-spacing: 0.08em; white-space: nowrap; }
+
+  .resume-bar {
+    display: none; flex-direction: column; gap: 10px;
+    background: rgba(79,124,255,0.08); border: 1px solid var(--accent);
+    border-radius: 12px; padding: 16px; width: 100%; max-width: 680px;
+    margin-bottom: 16px; 
+  }
+  .resume-bar .resume-info { font-size: 13px; color: var(--accent); font-weight: 500; }
+  .resume-actions { display: flex; gap: 8px; }
+  .resume-actions button {
+    flex: 1; padding: 9px; border-radius: 8px; border: none; cursor: pointer;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; font-size: 12px; font-weight: 600;
+  }
+  .btn-resume { background: var(--accent); color: white; }
+  .btn-discard { background: var(--surface2); color: var(--text-muted); border: 1px solid var(--border) !important; }
+  .divider hr { flex: 1; border: none; border-top: 1px solid var(--border); }
+  .divider span { font-size: 11px; color: var(--text-muted); }
+
+  .toast {
+    position: fixed; bottom: 24px; left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px 20px; font-size: 13px;
+    transition: transform 0.3s ease; z-index: 100; white-space: nowrap;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+  .toast.success { border-color: var(--success); color: var(--success); }
+  .toast.error { border-color: var(--danger); color: var(--danger); }
+
+  @keyframes fadeDown { from { opacity:0; transform:translateY(-16px); } to { opacity:1; transform:translateY(0); } }
+  @keyframes fadeUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
+</style>
+
+</head>
+<body>
+
+<header>
+  <h1>VoiceScript</h1>
+  <p>AI 기반 다국어 회의 전사 · 한/영/日 · 자동 청크 분할 · 크기 제한 없음</p>
+</header>
+
+<div class="resume-bar" id="resumeBar">
+  <div class="resume-info"></div>
+  <div class="resume-actions">
+    <button class="btn-resume" onclick="resumeFromSaved()">📂 저장된 결과 불러오기</button>
+    <button class="btn-discard" onclick="discardSaved()">🗑️ 삭제하고 새로 시작</button>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-title">🔑 API 키 입력</div>
+
+  <!-- Gemini Key — always visible -->
+  <div style="margin-bottom:14px;">
+    <div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:6px;letter-spacing:0.04em;">
+      🤖 GEMINI API KEY <span style="font-weight:400;color:var(--accent);font-size:10px;">전사 + 회의록 생성</span>
+    </div>
+    <input type="password" id="geminiKey" placeholder="AIzaSy..." autocomplete="off" oninput="saveKeys(); updateGeminiQuotaDisplay()" />
+    <p class="api-hint">무료 발급: <a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com/apikey</a> → "Create API Key"</p>
+  </div>
+
+  <!-- Gladia Key — always visible -->
+  <div style="margin-bottom:14px;">
+    <div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:6px;letter-spacing:0.04em;">
+      🎯 GLADIA API KEY <span style="font-weight:400;color:var(--accent);font-size:10px;">화자 구분 정확 · 월 10시간</span>
+    </div>
+    <input type="password" id="gladiaKey" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" autocomplete="off" oninput="saveKeys()" />
+    <p class="api-hint">무료 발급: <a href="https://app.gladia.io" target="_blank">app.gladia.io</a> → 회원가입 → API Keys</p>
+  </div>
+
+  <!-- Provider tabs — just selects which to USE -->
+  <div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:8px;letter-spacing:0.04em;">⚙️ 전사에 사용할 서비스</div>
+  <div class="provider-tabs">
+    <button class="provider-tab active" id="tabGemini" onclick="selectProvider('gemini')">
+      🤖 Gemini 2.0 Flash<span class="badge badge-free">일 1,000회 무료</span>
+    </button>
+    <button class="provider-tab" id="tabGladia" onclick="selectProvider('gladia')">
+      🎯 Gladia<span class="badge badge-accurate">화자구분 정확</span>
+    </button>
+  </div>
+
+  <!-- Gemini dashboard (shows when key entered) -->
+  <div id="geminiQuotaBox" style="display:none;margin-top:10px;padding:12px 14px;border-radius:8px;background:var(--surface2);border:1px solid var(--border);font-size:12px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+      <span style="color:var(--text-muted);font-size:11px;">이 탭에서 사용한 요청 수 기준 · <a href="https://aistudio.google.com/quota" target="_blank" style="color:var(--accent);">실시간 확인은 AI Studio</a></span>
+      <span id="geminiQuotaReset" style="color:var(--text-muted);font-size:10px;"></span>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;text-align:center;">
+      <div style="background:var(--bg);border-radius:8px;padding:8px;">
+        <div style="color:var(--text-muted);font-size:10px;margin-bottom:4px;">오늘 사용</div>
+        <div style="font-family:Consolas,'Courier New',monospace;font-size:18px;font-weight:700;">
+          <span id="geminiRpdUsed">0</span><span style="font-size:11px;color:var(--text-muted)"> 회</span>
+        </div>
+      </div>
+      <div style="background:var(--bg);border-radius:8px;padding:8px;">
+        <div style="color:var(--text-muted);font-size:10px;margin-bottom:4px;">잔여 (추정)</div>
+        <div style="font-family:Consolas,'Courier New',monospace;font-size:18px;font-weight:700;">
+          <span id="geminiRpdLeft" style="color:var(--success);">—</span><span style="font-size:11px;color:var(--text-muted)"> / 1,000</span>
+        </div>
+      </div>
+      <div style="background:var(--bg);border-radius:8px;padding:8px;">
+        <div style="color:var(--text-muted);font-size:10px;margin-bottom:4px;">처리 가능 (5분 청크)</div>
+        <div style="font-family:Consolas,'Courier New',monospace;font-size:18px;font-weight:700;">
+          <span id="geminiMaxMinutes" style="color:var(--accent2);">—</span><span style="font-size:11px;color:var(--text-muted);"> 분</span>
+        </div>
+      </div>
+    </div>
+    <div style="margin-top:8px;font-size:10px;color:var(--text-muted);">⚠️ 탭을 닫으면 초기화. 정확한 잔여량은 <a href="https://aistudio.google.com/quota" target="_blank" style="color:var(--accent);">AI Studio 대시보드</a>에서 확인</div>
+    <div id="geminiQuotaWarn" style="display:none;margin-top:8px;color:#f59e0b;font-size:11px;font-weight:500;"></div>
+  </div>
+
+  <!-- Gladia info panel -->
+  <div id="panelGladiaInfo" style="display:none;margin-top:10px;padding:12px 14px;border-radius:8px;background:var(--surface2);border:1px solid var(--border);font-size:12px;">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+      <div style="background:var(--bg);border-radius:8px;padding:8px;text-align:center;">
+        <div style="color:var(--text-muted);font-size:10px;margin-bottom:4px;">월 무료 한도</div>
+        <div style="font-family:Consolas,'Courier New',monospace;font-size:18px;font-weight:700;color:var(--success);">600분</div>
+        <div style="font-size:10px;color:var(--text-muted);">매월 1일 초기화</div>
+      </div>
+      <div style="background:var(--bg);border-radius:8px;padding:8px;text-align:center;">
+        <div style="color:var(--text-muted);font-size:10px;margin-bottom:4px;">한도 계산 기준</div>
+        <div style="font-family:Consolas,'Courier New',monospace;font-size:18px;font-weight:700;color:var(--accent2);">재생 시간</div>
+        <div style="font-size:10px;color:var(--text-muted);">MB 크기 아님</div>
+      </div>
+    </div>
+    <div style="font-size:11px;color:var(--text-muted);line-height:1.7;">
+      • 172분 파일 = 172분 차감 (파일 크기와 무관)<br>
+      • 135분 초과 시 자동 분할 처리<br>
+      • 잔여 시간은 API 조회 불가 → <a href="https://app.gladia.io" target="_blank" style="color:var(--accent);">app.gladia.io 대시보드</a>에서 확인
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-title">📁 파일 업로드 (크기 제한 없음 — 자동 분할)</div>
+  <div class="upload-zone" id="uploadZone">
+    <input type="file" id="fileInput" accept="audio/*" onchange="handleFile(this)" />
+    <div class="icon">🎵</div>
+    <p><span>클릭</span>하거나 파일을 여기에 끌어다 놓으세요</p>
+    <p style="font-size:11px;margin-top:4px;">mp3, m4a, aac, wav, ogg — 150MB도 OK, 자동으로 잘라서 처리</p>
+    <div class="file-name" id="fileName"></div>
+  </div>
+
+  <div class="settings-row">
+    <div>
+      <div class="label-sm">주 언어</div>
+      <select id="langSelect">
+        <option value="auto">한/영/日 자동 감지</option>
+        <option value="ko_en">한국어 + 영어</option>
+        <option value="ko_ja">한국어 + 일본어</option>
+        <option value="ko">한국어만</option>
+        <option value="en">영어만</option>
+        <option value="ja">일본어만</option>
+      </select>
+    </div>
+    <div>
+      <div class="label-sm">화자 수 추정</div>
+      <select id="speakerCount">
+        <option value="auto">자동</option>
+        <option value="2">2명</option>
+        <option value="3">3명</option>
+        <option value="4">4명</option>
+        <option value="5">5명</option>
+      </select>
+    </div>
+    <div>
+      <div class="label-sm">청크 길이</div>
+      <select id="chunkDuration">
+        <option value="300">5분</option>
+        <option value="480">8분</option>
+        <option value="600">10분 (8kHz 압축 시 권장)</option>
+      </select>
+    </div>
+  </div>
+
+  <button class="transcribe-btn" id="transcribeBtn" onclick="transcribeAll()">✨ 전사 시작</button>
+
+  <div id="preflightBox" style="display:none;margin-top:12px;padding:12px;border-radius:10px;border:1px solid #f59e0b;background:rgba(245,158,11,0.07);font-size:12px;line-height:1.8;color:#f59e0b;"></div>
+
+  <div class="progress-wrap" id="progressWrap">
+    <div class="chunk-info">
+      <span id="chunkInfoLeft">준비 중...</span>
+      <span id="chunkInfoRight"></span>
+    </div>
+    <div class="progress-bar-bg"><div class="progress-bar" id="progressBar"></div></div>
+    <div class="progress-label" id="progressLabel"></div>
+    <div class="chunk-log" id="chunkLog"></div>
+  </div>
+</div>
+
+<!-- ── 전사 결과 ─────────────────────────────────────────────── -->
+<div class="card" id="resultCard" style="display:none;">
+  <div class="card-title">📝 전사 결과 <span style="font-size:10px;color:var(--text-muted);font-weight:400;text-transform:none;letter-spacing:0;">(클릭하여 편집 가능)</span></div>
+  <div class="result-box" id="resultBox" contenteditable="true"></div>
+
+  <!-- Export section -->
+  <div style="margin-top:16px;padding:14px;border-radius:12px;background:var(--surface2);border:1px solid var(--border);">
+    <div style="font-size:10px;color:var(--text-muted);font-weight:600;letter-spacing:0.08em;margin-bottom:10px;">💾 전사본 저장 형식</div>
+    <div class="format-picker">
+      <button class="fmt-btn selected" id="fmtTxt" onclick="selectFmt('txt')">📄 TXT</button>
+      <button class="fmt-btn" id="fmtDocx" onclick="selectFmt('docx')">📘 Word</button>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:4px;">
+      <button class="export-btn" style="flex:1;margin:0;" onclick="exportSelected()">저장하기</button>
+      <button class="export-btn" id="copyBtn" style="flex:0 0 auto;margin:0;background:var(--card);color:var(--accent);border:1.5px solid var(--accent);" onclick="copyTranscript()">📋 복사</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── 구분선 ─────────────────────────────────────────────────── -->
+<div class="section-sep" id="minutesSep" style="display:none;">
+  <hr/><span>MEETING MINUTES</span><hr/>
+</div>
+
+<!-- ── 회의록 ─────────────────────────────────────────────────── -->
+<div class="card" id="minutesCard" style="display:none;">
+  <div class="card-title">📋 회의록</div>
+
+  <!-- Generate button — always at top -->
+  <button class="minutes-cta" id="generateMinutesBtn" onclick="generateMinutes()">
+    <span id="minutesBtnIcon">✨</span> 전사 결과로 회의록 자동 생성
+  </button>
+  <div id="minutesHint" style="font-size:11px;color:var(--text-muted);text-align:center;margin-top:6px;">
+    Gemini API가 전사본을 읽고 지정 양식으로 정리합니다
+  </div>
+
+  <!-- Result area (hidden until generated) -->
+  <div id="minutesResultWrap" style="display:none;margin-top:16px;">
+    <div id="minutesLoading" style="display:none;text-align:center;padding:20px;color:var(--text-muted);font-size:13px;">
+      ⏳ 회의록 생성 중...
+    </div>
+    <div class="result-box" id="minutesBox" contenteditable="true" style="min-height:200px;"></div>
+
+    <!-- Minutes export -->
+    <div style="margin-top:14px;padding:14px;border-radius:12px;background:var(--surface2);border:1px solid var(--border);">
+      <div style="font-size:10px;color:var(--text-muted);font-weight:600;letter-spacing:0.08em;margin-bottom:10px;">💾 회의록 저장 형식</div>
+      <div class="format-picker">
+        <button class="fmt-btn selected" id="mFmtTxt" onclick="selectMinutesFmt('txt')">📄 TXT</button>
+        <button class="fmt-btn" id="mFmtDocx" onclick="selectMinutesFmt('docx')">📘 Word</button>
+      </div>
+      <button class="export-btn" style="width:100%;margin:0;" onclick="exportMinutesSelected()">저장하기</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let uploadedBlob = null;
+let selectedFmt = 'txt', selectedMinutesFmt = 'txt';
+
+// ── API 키 자동저장/불러오기 ───────────────────────────────────────────────
+function saveKeys() {
+  try {
+    const gk = document.getElementById('geminiKey').value;
+    const glk = document.getElementById('gladiaKey').value;
+    if (gk) localStorage.setItem('vs_gemini_key', gk);
+    if (glk) localStorage.setItem('vs_gladia_key', glk);
+  } catch(e) {}
+}
+function loadKeys() {
+  try {
+    const gk = localStorage.getItem('vs_gemini_key');
+    const glk = localStorage.getItem('vs_gladia_key');
+    if (gk) { document.getElementById('geminiKey').value = gk; updateGeminiQuotaDisplay(); }
+    if (glk) document.getElementById('gladiaKey').value = glk;
+    if (gk || glk) showToast('저장된 API 키를 불러왔어요 🔑', 'success');
+  } catch(e) {}
+}
+
+function selectFmt(fmt) {
+  selectedFmt = fmt;
+  ['txt','docx'].forEach(f => document.getElementById('fmt'+f.charAt(0).toUpperCase()+f.slice(1)).classList.toggle('selected', f===fmt));
+}
+function selectMinutesFmt(fmt) {
+  selectedMinutesFmt = fmt;
+  ['txt','docx'].forEach(f => document.getElementById('mFmt'+f.charAt(0).toUpperCase()+f.slice(1)).classList.toggle('selected', f===fmt));
+}
+async function copyTranscript() {
+  const text = getResultText();
+  if (!text) return showToast('전사 내용이 없습니다.', 'error');
+  try {
+    await navigator.clipboard.writeText(text);
+    const btn = document.getElementById('copyBtn');
+    btn.textContent = '✅ 복사됨';
+    setTimeout(() => { btn.textContent = '📋 복사'; }, 2000);
+    showToast('클립보드에 복사됐어요!', 'success');
+  } catch(e) {
+    // fallback for older mobile browsers
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.focus(); ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    showToast('클립보드에 복사됐어요!', 'success');
+  }
+}
+function exportSelected() {
+  if (selectedFmt==='txt') exportTxt();
+  else exportDocx();
+}
+function exportMinutesSelected() {
+  if (selectedMinutesFmt==='txt') exportMinutesTxt();
+  else exportMinutesDocx();
+}
+
+// File Upload
+function handleFile(input) {
+  const file = input.files[0]; if (!file) return;
+  uploadedBlob = file;
+  const mb = (file.size/1024/1024).toFixed(1);
+  document.getElementById('fileName').textContent = `✓ ${file.name} (${mb}MB)`;
+}
+const zone = document.getElementById('uploadZone');
+zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag'); });
+zone.addEventListener('dragleave', () => zone.classList.remove('drag'));
+zone.addEventListener('drop', e => {
+  e.preventDefault(); zone.classList.remove('drag');
+  const file = e.dataTransfer.files[0];
+  if (file && file.type.startsWith('audio/')) {
+    uploadedBlob = file;
+    document.getElementById('fileName').textContent = `✓ ${file.name} (${(file.size/1024/1024).toFixed(1)}MB)`;
+  }
+});
+
+// ── WAV Encoder (8kHz mono — speech-optimized, ~6MB per 5min chunk) ──────────────────────────
+function audioBufferToWav(buffer) {
+  const SR = 8000;
+  const samples = downsample(buffer, SR);
+  const dataLen = samples.length * 2;
+  const ab = new ArrayBuffer(44 + dataLen);
+  const v = new DataView(ab);
+  const ws = (o, s) => { for (let i=0;i<s.length;i++) v.setUint8(o+i, s.charCodeAt(i)); };
+  ws(0,'RIFF'); v.setUint32(4,36+dataLen,true); ws(8,'WAVE'); ws(12,'fmt ');
+  v.setUint32(16,16,true); v.setUint16(20,1,true); v.setUint16(22,1,true);
+  v.setUint32(24,SR,true); v.setUint32(28,SR*2,true); v.setUint16(32,2,true);
+  v.setUint16(34,16,true); ws(36,'data'); v.setUint32(40,dataLen,true);
+  let off = 44;
+  for (let i=0;i<samples.length;i++) {
+    const s = Math.max(-1,Math.min(1,samples[i]));
+    v.setInt16(off, s<0 ? s*0x8000 : s*0x7FFF, true); off+=2;
+  }
+  return new Blob([ab], { type: 'audio/wav' });
+}
+function downsample(buffer, targetSR) {
+  const ch0 = buffer.getChannelData(0);
+  const ch1 = buffer.numberOfChannels > 1 ? buffer.getChannelData(1) : null;
+  const mono = new Float32Array(ch0.length);
+  for (let i=0;i<ch0.length;i++) mono[i] = ch1 ? (ch0[i]+ch1[i])/2 : ch0[i];
+  if (buffer.sampleRate === targetSR) return mono;
+  const ratio = buffer.sampleRate / targetSR;
+  const out = new Float32Array(Math.round(mono.length/ratio));
+  for (let i=0;i<out.length;i++) out[i] = mono[Math.round(i*ratio)];
+  return out;
+}
+function splitBuffer(buffer, chunkSec, overlapSec=30) {
+  // 경계 잘림 방지: 각 청크 끝에 30초 겹침 추가
+  const sr = buffer.sampleRate;
+  const cs = sr * chunkSec;
+  const overlap = sr * overlapSec;
+  const total = buffer.length;
+  const chunks = [], startTimes = [];
+  let start = 0;
+  while (start < total) {
+    const end = Math.min(start + cs + overlap, total);
+    const len = end - start;
+    const chunkBuf = {
+      numberOfChannels: buffer.numberOfChannels,
+      length: len,
+      sampleRate: sr,
+      getChannelData: (ch) => buffer.getChannelData(ch).slice(start, end)
+    };
+    chunks.push(chunkBuf);
+    startTimes.push(start / sr);
+    start += cs;
+  }
+  return { chunks, startTimes };
+}
+
+// ── Session Save/Resume ───────────────────────────────────────────────────
+const SESSION_KEY = 'voicescript_progress';
+function saveProgress(data) { try { localStorage.setItem(SESSION_KEY, JSON.stringify(data)); } catch(e) {} }
+function loadProgress() { try { const d = localStorage.getItem(SESSION_KEY); return d ? JSON.parse(d) : null; } catch(e) { return null; } }
+function clearProgress() { try { localStorage.removeItem(SESSION_KEY); } catch(e) {} }
+
+window.addEventListener('load', () => {
+  loadKeys();
+  const saved = loadProgress();
+  if (saved && saved.results && saved.results.filter(r=>r!==null).length > 0) {
+    const bar = document.getElementById('resumeBar');
+    bar.style.display = 'flex';
+    bar.querySelector('.resume-info').textContent =
+      `이전 작업 발견: ${saved.results.filter(r=>r!==null).length}/${saved.total}개 청크 완료 — 이어서 하거나 결과 바로 보기`;
+  }
+});
+
+function resumeFromSaved() {
+  const saved = loadProgress();
+  if (!saved) return;
+  mergeAndShow(saved.results, saved.chunkSec, saved.total);
+  document.getElementById('resumeBar').style.display = 'none';
+  showToast('저장된 결과를 불러왔어요!', 'success');
+}
+function discardSaved() {
+  clearProgress();
+  document.getElementById('resumeBar').style.display = 'none';
+  showToast('저장된 데이터를 삭제했어요.', '');
+}
+
+// ── Quota Tracker (Gemini) ────────────────────────────────────────────────
+const QUOTA_KEY = 'voicescript_gemini_quota';
+const GEMINI_RPM = 15;
+const GEMINI_RPD = 1000;
+
+function getQuotaData() {
+  try {
+    const raw = localStorage.getItem(QUOTA_KEY);
+    if (!raw) return { used: 0, date: getTodayPT() };
+    const d = JSON.parse(raw);
+    if (d.date !== getTodayPT()) return { used: 0, date: getTodayPT() }; // 날짜 바뀌면 초기화
+    return d;
+  } catch(e) { return { used: 0, date: getTodayPT() }; }
+}
+function saveQuotaData(d) {
+  try { localStorage.setItem(QUOTA_KEY, JSON.stringify(d)); } catch(e) {}
+}
+function incrementQuota(count=1) {
+  const d = getQuotaData();
+  d.used = (d.used || 0) + count;
+  saveQuotaData(d);
+  updateGeminiQuotaDisplay();
+}
+function getTodayPT() {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' });
+}
+function getMsUntilMidnightPT() {
+  const now = new Date();
+  const pt = new Date(now.toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
+  const midnight = new Date(pt); midnight.setHours(24,0,0,0);
+  return midnight - pt;
+}
+function updateGeminiQuotaDisplay() {
+  const key = document.getElementById('geminiKey').value.trim();
+  const box = document.getElementById('geminiQuotaBox');
+  if (!key) { box.style.display = 'none'; return; }
+  box.style.display = 'block';
+  const d = getQuotaData();
+  const used = d.used || 0;
+  const left = GEMINI_RPD - used;
+  document.getElementById('geminiRpdUsed').textContent = used;
+  const leftEl = document.getElementById('geminiRpdLeft');
+  leftEl.textContent = left;
+  leftEl.style.color = left < 100 ? 'var(--danger)' : left < 300 ? '#f59e0b' : 'var(--success)';
+
+  // 처리 가능 분 계산 (5분 청크 기준, 안전 여유 포함)
+  // 각 청크 = 1회 요청. left회 남았으면 left * 5분 처리 가능
+  const maxMinutes = left * 5;
+  const maxMinEl = document.getElementById('geminiMaxMinutes');
+  if (maxMinEl) {
+    maxMinEl.textContent = maxMinutes >= 1000 ? '999+' : maxMinutes;
+    maxMinEl.style.color = maxMinutes < 50 ? 'var(--danger)' : maxMinutes < 250 ? '#f59e0b' : 'var(--accent2)';
+  }
+
+  // 초기화까지 남은 시간
+  const ms = getMsUntilMidnightPT();
+  const h = Math.floor(ms/3600000), m = Math.floor((ms%3600000)/60000);
+  document.getElementById('geminiQuotaReset').textContent = `초기화까지 ${h}시간 ${m}분`;
+
+  // 경고
+  const warnEl = document.getElementById('geminiQuotaWarn');
+  if (left < 20) {
+    warnEl.style.display = 'block';
+    warnEl.textContent = `⛔ 오늘 한도 거의 소진 (잔여 ${left}회 = 약 ${maxMinutes}분). Gladia 탭으로 전환을 권장해요.`;
+  } else if (left < 100) {
+    warnEl.style.display = 'block';
+    warnEl.textContent = `⚠️ 잔여 ${left}회 (약 ${maxMinutes}분 처리 가능). 대용량 파일은 Gladia가 안전해요.`;
+  } else {
+    warnEl.style.display = 'none';
+  }
+}
+
+// ── Preflight Check ───────────────────────────────────────────────────────
+async function runPreflightCheck(blob, chunkSec) {
+  const box = document.getElementById('preflightBox');
+  box.style.display = 'none';
+  const warnings = [];
+
+  if (currentProvider === 'gemini') {
+    // 오디오 길이 추정 (디코딩 없이 파일 크기로 추정)
+    const fileMB = blob.size / 1024 / 1024;
+    // 실제 청크 수는 전사 시작 시 알 수 있지만, 파일 크기로 대략 추정
+    const d = getQuotaData();
+    const left = GEMINI_RPD - (d.used || 0);
+
+    if (left < 20) {
+      warnings.push(`⛔ 오늘 Gemini 잔여 요청이 ${left}회뿐이에요. 내일 태평양 자정 이후 다시 시도하거나 Gladia를 사용하세요.`);
+    } else if (left < 50) {
+      warnings.push(`⚠️ 잔여 요청 ${left}회. 짧은 파일(5분 이하)만 안전해요.`);
+    }
+    if (fileMB > 50) {
+      const estimatedChunks = Math.ceil(fileMB / 8); // 대략적 추정
+      if (estimatedChunks > left) {
+        warnings.push(`⚠️ 파일이 크네요(${fileMB.toFixed(0)}MB). 예상 청크 수(약 ${estimatedChunks}개)가 잔여 요청(${left}회)을 초과할 수 있어요.`);
+      }
+    }
+  }
+
+  if (currentProvider === 'gladia') {
+    const fileMB = blob.size / 1024 / 1024;
+    if (fileMB > 500) {
+      warnings.push(`⛔ 파일 크기(${fileMB.toFixed(0)}MB)가 Gladia 업로드 제한(500MB)을 초과해요. 압축 후 다시 시도하세요.`);
+    }
+    // 월 한도 안내 (MB가 아닌 재생 시간 기준)
+    if (fileMB > 50) {
+      warnings.push(`ℹ️ Gladia 무료 한도는 <b>오디오 재생 시간</b> 기준이에요 (월 600분 무료). 파일 크기(MB)로 차감되지 않아요.`);
+    }
+  }
+
+  if (warnings.length > 0) {
+    box.style.display = 'block';
+    box.innerHTML = warnings.join('<br>');
+  }
+  return warnings.some(w => w.startsWith('⛔'));
+}
+
+// ── Provider Selection ────────────────────────────────────────────────────
+let currentProvider = 'gemini';
+function selectProvider(p) {
+  currentProvider = p;
+  document.getElementById('tabGemini').classList.toggle('active', p==='gemini');
+  document.getElementById('tabGladia').classList.toggle('active', p==='gladia');
+  // Show/hide info panels
+  const quotaBox = document.getElementById('geminiQuotaBox');
+  const gladiaBox = document.getElementById('panelGladiaInfo');
+  if (p === 'gemini') {
+    gladiaBox.style.display = 'none';
+    updateGeminiQuotaDisplay(); // will show quotaBox if key exists
+  } else {
+    quotaBox.style.display = 'none';
+    gladiaBox.style.display = 'block';
+  }
+}
+
+// ── Gemini API ────────────────────────────────────────────────────────────
+function buildPrompt(lang, speakers, idx, total, startTimeSec=0) {
+  const langHint = { auto:'한국어·영어·일본어 혼합 (코드스위칭)', ko_en:'한국어·영어 혼용', ko_ja:'한국어·일본어 혼용', ko:'한국어', en:'영어', ja:'일본어' }[lang] || '한국어·영어·일본어 혼합';
+  const spkHint = speakers==='auto' ? '화자 수 자동 감지' : `약 ${speakers}명`;
+  const offsetMin = Math.floor(startTimeSec/60), offsetSec = Math.floor(startTimeSec%60);
+  const offsetStr = `${String(offsetMin).padStart(2,'0')}:${String(offsetSec).padStart(2,'0')}`;
+  const partNote = total>1
+    ? `\n이 오디오는 전체 녹음의 파트 ${idx+1}/${total}입니다.\n전체 기준 시작 시간: ${offsetStr} — 타임스탬프는 전체 기준 절대 시간으로 표시 (예: 파트 시작이 05:00이면 첫 발화는 [05:03] 형식).`
+    : '';
+  return `다음 오디오를 전사해주세요.${partNote}
+규칙:
+1. 언어: ${langHint}
+2. 화자: ${spkHint} — "[화자 A]:", "[화자 B]:" 형식으로 구분
+3. 타임스탬프 [mm:ss] 를 각 발화 앞에 표시 (전체 녹음 기준 절대 시간)
+4. 불명확한 부분은 [불명확] 표시
+5. 원어 그대로 전사, 번역 없이
+6. 전사 결과만 출력`;
+}
+
+async function callGeminiWithRetry(apiKey, wavBlob, prompt) {
+  // 재시도 없음 — 실패 시 즉시 오류 다이얼로그 표시
+  return await callGemini(apiKey, wavBlob, prompt);
+}
+
+async function callGemini(apiKey, wavBlob, prompt) {
+  const base64 = await toBase64(wavBlob);
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+    { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        contents:[{ parts:[{ text:prompt },{ inline_data:{ mime_type:'audio/wav', data:base64 }}]}],
+        generationConfig:{ temperature:0.1, maxOutputTokens:8192 }
+      })
+    }
+  );
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.message);
+  return data.candidates?.[0]?.content?.parts?.map(p=>p.text||'').join('') || '';
+}
+
+// ── Gladia API ────────────────────────────────────────────────────────────
+async function transcribeWithGladia(apiKey, blob, lang, speakers) {
+  // 파일 길이 확인 — 135분 초과 시 자동 청크 분할
+  addLog('🔄 파일 분석 중...', 'active');
+  const arrayBuf = await blob.arrayBuffer();
+  const decodeCtx = new AudioContext();
+  const audioBuf = await decodeCtx.decodeAudioData(arrayBuf.slice(0));
+  const totalMin = audioBuf.duration / 60;
+
+  const GLADIA_MAX_MIN = 130; // 135분보다 약간 여유있게
+  if (totalMin > GLADIA_MAX_MIN) {
+    addLog(`⚠️ ${totalMin.toFixed(0)}분 파일 → Gladia 제한(135분) 초과. 청크 분할 처리합니다.`, 'active');
+    const { chunks, startTimes } = splitBuffer(audioBuf, GLADIA_MAX_MIN * 60);
+    const results = [];
+    for (let i = 0; i < chunks.length; i++) {
+      addLog(`🔄 파트 ${i+1}/${chunks.length} 전송 중...`, 'active');
+      setP(10 + Math.round((i / chunks.length) * 80), `파트 ${i+1}/${chunks.length} 전사 중...`);
+      const wavBlob = audioBufferToWav(chunks[i]);
+      const text = await callGladiaOnce(apiKey, wavBlob, lang, speakers);
+      const sec = startTimes[i] || 0;
+      const sm = String(Math.floor(sec/60)).padStart(2,'0'), ss = String(Math.floor(sec%60)).padStart(2,'0');
+      results.push(`\n${'─'.repeat(38)}\n📌 파트 ${i+1}  (시작: ${sm}:${ss})\n${'─'.repeat(38)}\n${text}`);
+      addLog(`✅ 파트 ${i+1} 완료`, 'done');
+    }
+    return results.join('\n');
+  }
+
+  // 135분 이하 — 원본 파일 통째로 업로드
+  return await callGladiaOnce(apiKey, blob, lang, speakers);
+}
+
+async function callGladiaOnce(apiKey, blob, lang, speakers) {
+  addLog('📤 Gladia: 파일 업로드 중...', 'active');
+
+  // 1. 파일 업로드
+  const formData = new FormData();
+  formData.append('audio', blob, 'audio.wav');
+  addLog(`📦 Gladia: 파일 크기 ${(blob.size/1024/1024).toFixed(1)}MB 업로드 시도 중...`, 'active');
+
+  let uploadRes, uploadData;
+  try {
+    uploadRes = await fetch('/api/gladia/v2/upload', {
+      method: 'POST',
+      headers: { 'x-gladia-key': apiKey },
+      body: formData
+    });
+  } catch(fetchErr) {
+    // Failed to fetch = 네트워크/CORS 오류
+    showErrorDialog('❌ Gladia 연결 실패', `Gladia 서버에 연결할 수 없어요.\n\n오류: ${fetchErr.message}\n\n가능한 원인:\n• 인터넷 연결 확인\n• Gladia 서버 일시 장애\n• 브라우저가 요청을 차단 (광고 차단 확장 프로그램 등)\n\n잠시 후 다시 시도해보세요.`);
+    throw fetchErr;
+  }
+
+  addLog(`📡 Gladia 응답 코드: ${uploadRes.status}`, 'active');
+
+  if (uploadRes.status === 401) {
+    showErrorDialog('🔑 Gladia API 키 오류', 'API 키가 유효하지 않아요.\n\napp.gladia.io에서 API 키를 다시 확인해주세요.');
+    throw new Error('Gladia API 키 오류 (401)');
+  }
+  if (uploadRes.status === 403) {
+    showErrorDialog('⛔ Gladia 월간 한도 초과', '이번 달 무료 한도(10시간)를 모두 사용했어요.\n\n다음 달 초에 리셋돼요. 지금은 Gemini로 전환해주세요.');
+    throw new Error('Gladia 한도 초과 (403)');
+  }
+  if (!uploadRes.ok) {
+    const errText = await uploadRes.text().catch(() => '');
+    showErrorDialog(`❌ Gladia 업로드 실패 (${uploadRes.status})`, `오류 내용: ${errText.slice(0,200)}\n\n문제가 계속되면 Claude에게 이 오류를 전달해주세요.`);
+    throw new Error(`Gladia 업로드 실패: ${uploadRes.status}`);
+  }
+
+  try {
+    uploadData = await uploadRes.json();
+  } catch(e) {
+    throw new Error('Gladia 응답 파싱 실패');
+  }
+
+  if (!uploadData.audio_url) {
+    showErrorDialog('❌ Gladia 업로드 실패', `서버 응답: ${JSON.stringify(uploadData).slice(0,200)}`);
+    throw new Error('Gladia 업로드 실패: audio_url 없음');
+  }
+  addLog('✅ Gladia: 업로드 완료, 전사 요청 중...', 'done');
+
+  // 2. 전사 요청
+  // 언어 설정: 항상 code_switching + 대상 언어 명시 (범위 제한으로 정확도 향상)
+  const langMap = {
+    auto:  { code_switching: true,  languages: ['ko', 'en', 'ja'] },
+    ko_en: { code_switching: true,  languages: ['ko', 'en'] },
+    ko_ja: { code_switching: true,  languages: ['ko', 'ja'] },
+    ko:    { code_switching: false, languages: ['ko'] },
+    en:    { code_switching: false, languages: ['en'] },
+    ja:    { code_switching: false, languages: ['ja'] },
+  };
+  const langCfg = langMap[lang] || langMap['auto'];
+  const body = {
+    audio_url: uploadData.audio_url,
+    diarization: true,
+    ...(speakers !== 'auto' ? { diarization_config: { number_of_speakers: parseInt(speakers) } } : {}),
+    language_config: langCfg
+  };
+
+  const transcribeRes = await fetch('/api/gladia/v2/pre-recorded', {
+    method: 'POST',
+    headers: { 'x-gladia-key': apiKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  const transcribeData = await transcribeRes.json();
+  if (!transcribeData.id) throw new Error('Gladia 전사 요청 실패: ' + JSON.stringify(transcribeData));
+
+  addLog('⏳ Gladia: 서버에서 처리 중... (1~3분 소요)', 'active');
+
+  // 3. 결과 폴링
+  const pollUrl = `/api/gladia/v2/pre-recorded/${transcribeData.id}`;
+  let elapsed = 0;
+  while (true) {
+    await sleep(5000);
+    elapsed += 5;
+    const pollRes = await fetch(pollUrl, { headers: { 'x-gladia-key': apiKey } });
+    const pollData = await pollRes.json();
+
+    if (pollData.status === 'done') {
+      addLog('✅ Gladia: 처리 완료!', 'done');
+      return formatGladiaResult(pollData.result);
+    } else if (pollData.status === 'error') {
+      const errMsg = pollData.result?.error || '알 수 없는 오류';
+      showErrorDialog('❌ Gladia 처리 오류', `서버에서 전사 처리 중 오류가 발생했어요.\n\n오류 내용: ${errMsg}\n\n• 파일 형식을 확인해주세요\n• 문제가 계속되면 Claude에게 오류 내용을 전달해주세요`);
+      throw new Error('Gladia 처리 오류: ' + errMsg);
+    } else {
+      addLog(`⏳ Gladia: 처리 중... (${elapsed}초 경과)`, 'active');
+    }
+    if (elapsed > 600) {
+      showErrorDialog('⏱️ Gladia 처리 시간 초과', `10분이 지났지만 응답이 없어요.\n\n• Gladia 서버가 혼잡할 수 있어요\n• 잠시 후 다시 시도해보세요\n• 파일이 매우 길다면(130분+) 청크로 나뉘어 처리돼요`);
+      throw new Error('Gladia 처리 시간 초과 (10분)');
+    }
+  }
+}
+
+function formatGladiaResult(result) {
+  const utterances = result?.transcription?.utterances;
+  if (!utterances || utterances.length === 0) {
+    // 화자 구분 없이 전체 텍스트만 있을 경우
+    return result?.transcription?.full_transcript || '[결과 없음]';
+  }
+  const speakerLabels = ['A','B','C','D','E','F','G','H'];
+  return utterances.map(u => {
+    const m = String(Math.floor(u.start / 60)).padStart(2,'0');
+    const s = String(Math.floor(u.start % 60)).padStart(2,'0');
+    const spk = speakerLabels[u.speaker] || u.speaker;
+    return `[${m}:${s}] [화자 ${spk}]: ${u.text}`;
+  }).join('\n');
+}
+
+function toBase64(blob) {
+  return new Promise((res,rej) => {
+    const r = new FileReader();
+    r.onload = () => res(r.result.split(',')[1]);
+    r.onerror = rej;
+    r.readAsDataURL(blob);
+  });
+}
+
+// ── Main ──────────────────────────────────────────────────────────────────
+async function transcribeAll() {
+  const blob = uploadedBlob;
+  if (!blob) return showToast('녹음하거나 파일을 업로드하세요.', 'error');
+
+  const lang = document.getElementById('langSelect').value;
+  const speakers = document.getElementById('speakerCount').value;
+  const chunkSec = parseInt(document.getElementById('chunkDuration').value);
+
+  // ── Preflight Check ──────────────────────────────────────────────────────
+  const hasBlocker = await runPreflightCheck(blob, chunkSec);
+  if (hasBlocker) {
+    showToast('⛔ 시작 전 경고를 확인하세요.', 'error');
+    return; // ⛔ 경고가 있으면 중단
+  }
+
+  document.getElementById('transcribeBtn').disabled = true;
+  document.getElementById('resumeBar').style.display = 'none';
+  document.getElementById('progressWrap').classList.add('visible');
+  const log = document.getElementById('chunkLog');
+  log.classList.add('visible'); log.innerHTML = '';
+
+  try {
+    // ── Gladia 경로 ──────────────────────────────────────────────────────
+    if (currentProvider === 'gladia') {
+      const apiKey = document.getElementById('gladiaKey').value.trim();
+      if (!apiKey) return showToast('Gladia API Key를 입력하세요.', 'error');
+
+      setP(10, '파일 준비 중...');
+      const text = await transcribeWithGladia(apiKey, blob, lang, speakers);
+      setP(100, '✅ 완료!');
+      showResult(text);
+      showToast('전사 완료!', 'success');
+      return;
+    }
+
+    // ── Gemini 경로 ──────────────────────────────────────────────────────
+    const apiKey = document.getElementById('geminiKey').value.trim();
+    if (!apiKey) return showToast('Gemini API Key를 입력하세요.', 'error');
+
+    setP(5, '오디오 디코딩 중...');
+    addLog('🔄 파일 분석 중...', 'active');
+
+    // 모바일 메모리 경고: 파일 크기로 추정
+    const fileMB = blob.size / 1024 / 1024;
+    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    if (isMobile && fileMB > 60) {
+      const proceed = await new Promise(resolve => {
+        const overlay = document.createElement('div');
+        overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
+        overlay.innerHTML = `<div style="background:var(--card);border-radius:16px;padding:28px 24px;max-width:420px;width:100%;box-shadow:0 8px 40px rgba(0,0,0,0.4);border:1.5px solid var(--border);">
+          <div style="font-size:18px;font-weight:700;color:var(--text);margin-bottom:12px;">⚠️ 대용량 파일 주의</div>
+          <div style="font-size:14px;color:var(--text-muted);line-height:1.7;margin-bottom:20px;">
+            파일 크기가 <strong style="color:var(--text)">${fileMB.toFixed(0)}MB</strong>예요.<br><br>
+            폰에서 큰 파일을 처리하면 <strong style="color:var(--danger)">메모리 부족으로 탭이 강제 종료</strong>될 수 있어요.<br><br>
+            • 가능하면 <strong style="color:var(--accent)">노트북에서 처리</strong>를 권장해요<br>
+            • 계속하면 중간에 끊길 수 있어요
+          </div>
+          <div style="display:flex;gap:10px;">
+            <button onclick="this.closest('div[style]').parentElement.__resolve(false);this.closest('div[style]').parentElement.remove();"
+              style="flex:1;padding:12px;background:var(--card);color:var(--text-muted);border:1.5px solid var(--border);border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;">취소</button>
+            <button onclick="this.closest('div[style]').parentElement.__resolve(true);this.closest('div[style]').parentElement.remove();"
+              style="flex:1;padding:12px;background:var(--accent);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;">그래도 계속</button>
+          </div>
+        </div>`;
+        overlay.__resolve = resolve;
+        document.body.appendChild(overlay);
+      });
+      if (!proceed) { setP(0, ''); return; }
+    }
+
+    const arrayBuf = await blob.arrayBuffer();
+    const decodeCtx = new AudioContext();
+    const audioBuf = await decodeCtx.decodeAudioData(arrayBuf);
+    const totalMin = (audioBuf.duration/60).toFixed(1);
+
+    setP(10, `총 ${totalMin}분 → 청크 분할 중...`);
+    const { chunks, startTimes } = splitBuffer(audioBuf, chunkSec);
+    const total = chunks.length;
+    addLog(`✅ ${totalMin}분 → ${total}개 청크로 분할 (경계 30초 오버랩 적용)`, 'done');
+    document.getElementById('chunkInfoRight').textContent = `총 ${total}개 청크`;
+
+    // 일일 한도 재확인 (실제 청크 수 기준)
+    const quota = getQuotaData();
+    const remaining = GEMINI_RPD - (quota.used || 0);
+    if (total > remaining) {
+      addLog(`⛔ 필요 요청(${total}회) > 잔여 한도(${remaining}회). 내일 다시 시도하거나 Gladia를 사용하세요.`, 'err');
+      showToast(`⛔ 일일 한도 부족 (필요 ${total}회, 잔여 ${remaining}회)`, 'error');
+      return;
+    }
+    addLog(`📊 Gemini 잔여: ${remaining}회 / 오늘 필요: ${total}회`, 'done');
+
+    // 청크 간격: RPM 15 기준 최소 4초지만, 한도 보호를 위해 10초로 설정
+    const safeIntervalMs = 10000; // 10초 (보수적 설정)
+
+    // 이전 저장 데이터 확인
+    const saved = loadProgress();
+    const results = (saved && saved.total === total) ? [...saved.results] : new Array(total).fill(null);
+    const resumedCount = results.filter(r=>r!==null).length;
+    if (resumedCount > 0) addLog(`♻️ 이전 진행 이어서 시작 (${resumedCount}개 이미 완료)`, 'done');
+
+    for (let i=0; i<total; i++) {
+      if (results[i] !== null) {
+        addLog(`⏭️ 청크 ${i+1} 이미 완료 — 건너뜀`, 'done');
+        continue;
+      }
+
+      const pct = 10 + Math.round((i/total)*85);
+      setP(pct, `청크 ${i+1}/${total} 전사 중...`);
+      document.getElementById('chunkInfoLeft').textContent = `청크 ${i+1} / ${total}`;
+      addLog(`🔄 청크 ${i+1}/${total} 전송 중...`, 'active');
+
+      const wav = audioBufferToWav(chunks[i]);
+      const mb = (wav.size/1024/1024).toFixed(1);
+      try {
+        const text = await callGeminiWithRetry(apiKey, wav, buildPrompt(lang, speakers, i, total, startTimes[i]));
+        results[i] = text;
+        incrementQuota(1); // 성공한 요청만 카운트
+        saveProgress({ results, total, chunkSec });
+        addLog(`✅ 청크 ${i+1} 완료 (${mb}MB WAV)`, 'done');
+      } catch(e) {
+        const isQuotaDay = e.message.includes('quota') && (e.message.includes('day') || e.message.includes('exceeded'));
+        const isQuotaMin = e.message.includes('429') || e.message.includes('quota');
+        let title, detail;
+        if (isQuotaDay) {
+          title = '⛔ 일일 한도 소진';
+          detail = '오늘 Gemini 요청 한도(1,000회)를 모두 사용했어요.\n\n• 태평양 자정 이후 자동 초기화돼요\n• 지금 당장 전사가 필요하면 Gladia 탭을 이용하세요';
+        } else if (isQuotaMin) {
+          title = '⚠️ 분당 요청 한도 초과';
+          detail = `청크 ${i+1} 전송 중 분당 한도(RPM 15)에 걸렸어요.\n\n• 잠시 후(1분 뒤) 다시 시도하거나\n• 청크 길이를 더 길게 설정해보세요`;
+        } else {
+          title = `❌ 청크 ${i+1} 전사 실패`;
+          detail = `오류 내용: ${e.message}\n\n• 네트워크 상태를 확인해주세요\n• API 키가 유효한지 확인해주세요\n• 문제가 계속되면 Claude에게 오류 내용을 전달해주세요`;
+        }
+        addLog(`${title}: ${e.message}`, 'err');
+        showErrorDialog(title, detail);
+        saveProgress({ results, total, chunkSec });
+        break; // 오류 발생 시 전사 중단
+      }
+      if (i < total-1) await sleep(safeIntervalMs);
+    }
+
+    setP(98, '결과 합치는 중...');
+    addLog('🔗 전체 결과 합치는 중...', 'active');
+    mergeAndShow(results, chunkSec, total, startTimes);
+    clearProgress();
+    setP(100, '✅ 완료!');
+    addLog('🎉 전체 전사 완료!', 'done');
+    showToast(`전사 완료! (${total}개 청크 처리)`, 'success');
+
+  } catch(e) {
+    showToast('오류: ' + e.message, 'error');
+    addLog('❌ ' + e.message, 'err');
+  } finally {
+    document.getElementById('transcribeBtn').disabled = false;
+    updateGeminiQuotaDisplay();
+  }
+}
+
+function mergeAndShow(results, chunkSec, total, startTimes=[]) {
+  const combined = results.map((text, i) => {
+    if (total===1) return text||'';
+    const sec = startTimes[i] !== undefined ? startTimes[i] : i * chunkSec;
+    const sm = Math.floor(sec/60), ss = Math.floor(sec%60);
+    return `\n${'─'.repeat(38)}\n📌 파트 ${i+1}  (시작: ${String(sm).padStart(2,'0')}:${String(ss).padStart(2,'0')})\n${'─'.repeat(38)}\n${text||''}`;
+  }).join('\n');
+  showResult(combined);
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+function setP(pct, label) {
+  document.getElementById('progressBar').style.width = pct+'%';
+  document.getElementById('progressLabel').textContent = label;
+}
+function addLog(msg, cls) {
+  const log = document.getElementById('chunkLog');
+  log.querySelectorAll('.active').forEach(el => { el.classList.remove('active'); el.classList.add('done'); });
+  const d = document.createElement('div'); d.className = 'log-line ' + cls; d.textContent = msg;
+  log.appendChild(d); log.scrollTop = log.scrollHeight;
+}
+function showResult(text) {
+  const card = document.getElementById('resultCard');
+  document.getElementById('resultBox').textContent = text;
+  card.style.display = 'block';
+  // Also show minutes section
+  document.getElementById('minutesSep').style.display = 'flex';
+  document.getElementById('minutesCard').style.display = 'block';
+  // Reset minutes if re-transcribing
+  document.getElementById('minutesResultWrap').style.display = 'none';
+  document.getElementById('minutesBox').textContent = '';
+  document.getElementById('generateMinutesBtn').textContent = '';
+  document.getElementById('generateMinutesBtn').innerHTML = '<span>✨</span> 전사 결과로 회의록 자동 생성';
+  document.getElementById('generateMinutesBtn').disabled = false;
+  card.scrollIntoView({ behavior:'smooth' });
+}
+
+// ── Meeting Minutes ───────────────────────────────────────────────────────
+async function generateMinutes() {
+  const transcript = getResultText();
+  if (!transcript.trim()) return showToast('전사 결과가 없어요.', 'error');
+
+  // Gemini 키 필요
+  const apiKey = document.getElementById('geminiKey').value.trim();
+  if (!apiKey) {
+    showToast('회의록 생성은 Gemini API 키가 필요해요. 상단 Gemini Key 입력란에 입력해주세요.', 'error');
+    document.getElementById('geminiKey').scrollIntoView({ behavior: 'smooth' });
+    document.getElementById('geminiKey').focus();
+    return;
+  }
+
+  const btn = document.getElementById('generateMinutesBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span>⏳</span> 회의록 생성 중...';
+
+  const minutesResultWrap = document.getElementById('minutesResultWrap');
+  const minutesBox = document.getElementById('minutesBox');
+  minutesResultWrap.style.display = 'block';
+  minutesBox.textContent = '';
+  document.getElementById('minutesLoading').style.display = 'block';
+  document.getElementById('minutesHint').style.display = 'none';
+  document.getElementById('minutesCard').scrollIntoView({ behavior: 'smooth' });
+
+  const transcriptText = transcript.slice(0, 40000);
+  const truncatedNote = transcript.length > 40000 ? '\n\n[⚠️ 전사본이 길어 앞부분 40,000자만 분석됐습니다. 후반부 내용이 누락될 수 있습니다.]' : '';
+
+  const prompt = `당신은 전문 회의록 작성 비서입니다. 아래 전사록을 분석하여 정해진 양식에 맞게 회의록을 작성하세요.
+
+## 작성 규칙 (반드시 준수)
+1. 아래 6개 항목을 순서대로, 빠짐없이 작성하세요. 항목 번호와 제목은 절대 바꾸지 마세요.
+2. 전사록에 없는 내용은 절대 추가하지 마세요. 파악 불가 항목은 "미확인"으로 기재하세요.
+3. 화자 A/B/C는 대화 맥락과 역할로 실제 역할을 추론하세요 (예: 주로 설명하는 측 = 공급사, 질문하는 측 = 바이어). 추론이 불가능하면 "화자 A" 그대로 사용하세요.
+4. 한국어와 영어가 혼용된 경우 한국어로 통일해서 작성하세요. 고유명사(회사명, 제품명, 수치)는 원문 그대로 유지하세요.
+5. 간결하고 명확하게 작성하세요. 불필요한 중복 표현은 제거하세요.
+6. Action Item이 없으면 "해당 없음"으로 기재하세요.
+
+## 전사록
+${transcriptText}${truncatedNote}
+
+---
+
+## 작성 양식 (이 형식을 그대로 사용하세요)
+
+1. 일시 및 장소
+- 일시: 
+- 장소: 
+
+2. 참석자
+1) 
+2) 
+3) 
+
+3. Executive Summary
+• 
+• 
+• 
+
+4. 안건
+1) 
+2) 
+
+5. 회의 내용
+
+[안건 1] 
+- 
+- 
+* 특이사항: 
+
+[안건 2] 
+- 
+- 
+
+6. Action Item
+| 담당자 | 내용 | 기한 |
+|--------|------|------|
+|  |  |  |`;
+
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.3, maxOutputTokens: 8192 }
+        })
+      }
+    );
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message);
+    const text = data.candidates?.[0]?.content?.parts?.map(p => p.text||''). join('') || '';
+    document.getElementById('minutesLoading').style.display = 'none';
+    minutesBox.textContent = text;
+    incrementQuota(1);
+    showToast('회의록 생성 완료!', 'success');
+  } catch(e) {
+    document.getElementById('minutesLoading').style.display = 'none';
+    minutesBox.textContent = '오류: ' + e.message;
+    showToast('회의록 생성 실패: ' + e.message.slice(0,40), 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<span>🔄</span> 회의록 다시 생성';
+  }
+}
+
+function exportMinutesTxt() {
+  download(new Blob([document.getElementById('minutesBox').innerText], {type:'text/plain;charset=utf-8'}), 'minutes.txt');
+  showToast('TXT 저장 완료', 'success');
+}
+async function exportMinutesDocx() {
+  if (!window.docx) {
+    showToast('Word 라이브러리 로딩 실패 — TXT로 저장해주세요', 'error');
+    return;
+  }
+  try {
+  const {Document,Packer,Paragraph,TextRun,HeadingLevel} = window.docx;
+  const lines = document.getElementById('minutesBox').innerText.split('\n');
+  const paras = lines.map(line => {
+    const isH2 = line.startsWith('## ');
+    return new Paragraph({
+      heading: isH2 ? HeadingLevel.HEADING_2 : undefined,
+      children: [new TextRun({ text: isH2 ? line.replace('## ','') : line, size: 22, font: 'Malgun Gothic' })],
+      spacing: { after: isH2 ? 120 : 40 }
+    });
+  });
+  const doc = new Document({ sections:[{ properties:{}, children:[
+    new Paragraph({ text:'회의록', heading:HeadingLevel.HEADING_1, spacing:{after:300} }),
+    new Paragraph({ children:[new TextRun({text:new Date().toLocaleDateString('ko-KR'), color:'888888', size:18})], spacing:{after:400} }),
+    ...paras
+  ]}]});
+  download(await Packer.toBlob(doc), 'minutes.docx');
+  showToast('Word 저장 완료', 'success');
+  } catch(e) {
+    console.error('exportMinutesDocx error:', e);
+    showToast('Word 저장 실패: ' + e.message, 'error');
+  }
+}
+
+// ── Export ────────────────────────────────────────────────────────────────
+function getResultText() { return document.getElementById('resultBox').innerText || ''; }
+
+function exportTxt() {
+  download(new Blob([getResultText()], {type:'text/plain;charset=utf-8'}), 'transcript.txt');
+  showToast('TXT 저장 완료', 'success');
+}
+
+async function exportDocx() {
+  const docxLib = window.docx || window.docx7;
+  if (!docxLib) {
+    // 마지막 시도: 동적 로드
+    showToast('Word 라이브러리 로딩 중...', 'success');
+    await new Promise((res, rej) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/docx@7.8.2/build/index.umd.js';
+      s.onload = res; s.onerror = rej;
+      document.head.appendChild(s);
+    }).catch(() => null);
+    if (!window.docx) { showToast('Word 라이브러리 로딩 실패 — TXT로 저장해주세요', 'error'); return; }
+  }
+  try {
+    const {Document,Packer,Paragraph,TextRun,HeadingLevel} = window.docx || window.docx7;
+    const lines = getResultText().split('\n');
+    const paras = lines.map(line => new Paragraph({
+      children: [new TextRun({
+        text: line,
+        bold: /^\[화자/.test(line) || /^📌/.test(line),
+        color: /^📌/.test(line) ? '4f7cff' : /^─/.test(line) ? '888888' : undefined,
+        size: 22, font: 'Malgun Gothic'
+      })],
+      spacing: { after: /^\[화자/.test(line) ? 60 : 20 }
+    }));
+    const doc = new Document({ sections:[{ properties:{}, children:[
+      new Paragraph({ text:'회의 전사록', heading:HeadingLevel.HEADING_1, spacing:{after:300} }),
+      new Paragraph({ children:[new TextRun({text:new Date().toLocaleDateString('ko-KR'), color:'888888', size:18})], spacing:{after:400} }),
+      ...paras
+    ]}]});
+    download(await Packer.toBlob(doc), 'transcript.docx');
+    showToast('Word 저장 완료', 'success');
+  } catch(e) {
+    console.error('exportDocx error:', e);
+    showToast('Word 저장 실패: ' + e.message, 'error');
+  }
+}
+function download(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
+}
+
+// ── Toast ─────────────────────────────────────────────────────────────────
+function showErrorDialog(title, detail) {
+  // 기존 다이얼로그 제거
+  const existing = document.getElementById('errorDialog');
+  if (existing) existing.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'errorDialog';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
+
+  const box = document.createElement('div');
+  box.style.cssText = 'background:var(--card);border-radius:16px;padding:28px 24px;max-width:420px;width:100%;box-shadow:0 8px 40px rgba(0,0,0,0.4);border:1.5px solid var(--border);';
+
+  box.innerHTML = `
+    <div style="font-size:18px;font-weight:700;color:var(--text);margin-bottom:12px;">${title}</div>
+    <div style="font-size:14px;color:var(--text-muted);line-height:1.7;white-space:pre-line;margin-bottom:20px;">${detail}</div>
+    <button onclick="document.getElementById('errorDialog').remove()"
+      style="width:100%;padding:12px;background:var(--accent);color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;">
+      확인
+    </button>
+  `;
+
+  overlay.appendChild(box);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+  document.body.appendChild(overlay);
+}
+
+function showToast(msg, type='') {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = 'toast show ' + type;
+  setTimeout(() => t.className = 'toast', 3500);
+}
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/docx@7.8.2/build/index.umd.js"></script>
+</body>
+</html>
